@@ -117,9 +117,10 @@ class modEhentai(autoDownloader):
             return False
         for anchor in anchors:
             for img in anchor.xpath("img"):
-                if "alt" in img.attrib and img.attrib["alt"] == "01":
+                if "alt" in img.attrib and ( img.attrib["alt"] == "01" or img.attrib["alt"] == "1" ):
                     self.nextUrl = anchor.attrib["href"]
                     return True
+        self.printf("cannot find next page...")
         return False
     def nextAnchor(self):
         #nextUrlが巡回済み > false
@@ -151,10 +152,13 @@ class modEhentai(autoDownloader):
             time.sleep(2)
 
 def main():
-    route = "C:/Users/X370/Desktop/dust"
+    route = "./Incinerator"
     if not os.path.exists(route):
         os.mkdir(route)
-    url = "https://e-hentai.org/g/1306490/d8276f35ee/"
+    url = ""
+    print("Get image from E-henta.org")
+    print("Enter any URL >> ", end="")
+    url = input("")
     index = modEhentai(route)
     index.traceImage(url)
 if __name__ == '__main__':
