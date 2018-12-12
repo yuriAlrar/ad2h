@@ -156,7 +156,7 @@ def main():
     if not os.path.exists(route):
         os.mkdir(route)
     url = ""
-    print("Get image from E-henta.org")
+    print("Get image from E-hentai.org")
     print("Enter any URL >> ", end="")
     url = input("")
     index = modEhentai(route)
