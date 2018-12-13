@@ -120,7 +120,7 @@ class modEhentai(autoDownloader):
                 if "alt" in img.attrib and ( img.attrib["alt"] == "01" or img.attrib["alt"] == "1" ):
                     self.nextUrl = anchor.attrib["href"]
                     return True
-        self.printf("cannot find next page...")
+        self.printf("mE::fI:cannot find next page...")
         return False
     def nextAnchor(self):
         #nextUrlが巡回済み > false
@@ -159,7 +159,10 @@ def main():
     print("Get image from E-hentai.org")
     print("Enter any URL >> ", end="")
     url = input("")
+    url = url + "?nw=session"
     index = modEhentai(route)
     index.traceImage(url)
+    return
 if __name__ == '__main__':
-    main()
+    while True:
+        main()
