@@ -160,11 +160,14 @@ class modEhentai(autoDownloader):
         self.connector(url)
         #タイトル，保存ディレクトリを作成
         titles = self.html.xpath("//h1")
-        for t in titles:
-            if "id" in t.attrib and t.attrib["id"] == "gj":
-                self.setSaveDir(t.text)
-                self.sprint("TITLE : \t" + self.title)
-                self.sprint("SAVE DIR : \t" + self.work_dir)
+        if titles:
+            for t in titles:
+                if "id" in t.attrib and t.attrib["id"] == "gj":
+                    self.setSaveDir(t.text)
+                    self.sprint("TITLE : \t" + self.title)
+                    self.sprint("SAVE DIR : \t" + self.work_dir)
+        else:
+            self.eprint("cant find title")
         anchors = self.getAnchors(url, False)
         if not anchors:
             self.eprint("failed top page analysis")
