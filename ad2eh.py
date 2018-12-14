@@ -3,26 +3,38 @@ import re
 import urllib3
 import requests
 import time
+import json
 from lxml import etree
 class debugIO():
     def __init__(self):
         self.vm = True
+        self.standard = ""
+        self.error = "\n"
+        self.eflag = False
     def mode(self, flag):
         self.vm = True if flag else False
-    def printf(self, prt):
+    def tostr(self, prt):
+        text = ""
         if not self.vm:
             return
         if type(prt) is str:
-            print(prt)
+            text = prt
         elif type(prt) is list:
             for i in prt:
-                print(i)
+                text = text + i + "\n"
         elif type(prt) is dict:
             for i in prt:
-                print(str(i) + "\t" + str(prt[i]))
+                text = str(i) + "\t" + str(prt[i]) + "\n"
         else:
-            print("invalid type")
-        
+            text = ">> invalid type"
+        return text
+    def sprint(self, prt, *, flag=True, end="\n"):
+        self.standard = self.tostr(prt)
+        if self.vm and flag:
+            print(self.standard, end=end)
+    def eprint(self, prt):
+        self.eflag = True
+        self.error = self.error + "\n" + self.tostr(prt)
 class autoDownloader(debugIO):
     def __init__(self, work_directory=""):
         super().__init__()
@@ -35,6 +47,10 @@ class autoDownloader(debugIO):
         else:
             self.work_dir = os.getcwd()
         self.work_dir = self.work_dir.replace("\\", "/")
+        #view list
+        self.vl = []
+        #image url list
+        self.il = []
     def connector(self, url):
         '''
         self.htmlへの入力はconnectorのみが行う
@@ -49,11 +65,11 @@ class autoDownloader(debugIO):
             }
             res = requests.get(url, headers=headers)
         except:
-            self.printf("ad::connector:connection failed")
+            self.eprint("ad::connector:connection failed")
             return False
         if res.status_code > 399:
             #ステータスコードが400以上
-            self.printf("http status code:" + str(res.status_code))
+            self.eprint("http status code:" + str(res.status_code))
             return False
         try:
             self.html = etree.fromstring( res.text, etree.HTMLParser() )
@@ -75,22 +91,58 @@ class autoDownloader(debugIO):
             if "href" in a.attrib:
                 cargo.append( a )
         return cargo
+    def dump(self, flag=True):
+        '''
+        ilとvlをダンプする
+        '''
+        if flag:
+            with open(self.work_dir + "/.vl", "w") as f:
+                json.dump(self.vl, f)
+            with open(self.work_dir + "/.il", "w") as f:
+                json.dump(self.il, f)
+        else:
+            os.remove(self.work_dir + "/.vl")
+            os.remove(self.work_dir + "/.il")
+        return
+    def setSaveDir(self, title):
+        self.title = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '_', title)
+        abs_path = self.work_dir + "/" + self.title
+        abs_path = abs_path.replace("//", "/")
+        self.work_dir = abs_path
+        if not os.path.exists(self.work_dir):
+            os.mkdir(self.work_dir)
+        else:
+            if os.path.exists(self.work_dir + "/.vl") and os.path.exists(self.work_dir + "/.il"):
+                with open(self.work_dir + "/.vl", "r") as f:
+                    self.vl = json.load(f)
+                with open(self.work_dir + "/.il", "r") as f:
+                    self.il = json.load(f)
+
+        return True
     def downloadImage(self, path, *, save_directory = ""):
         ext = path.split(".")[-1]
-        self.printf("CONN. : \t" + path)
+        if path in self.il:
+            self.sprint(" aD::dI:already downloaded > skip")
+            return
         res = requests.get(path)
         if res.status_code > 400:
             return False
-        fina = str(self.name_rule).zfill(4) + "." + ext
+        fina = str( len(self.il) ).zfill(4) + "." + ext
         #genereate absolute path
-        save_directory = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '_', save_directory)
-        abs_path = self.work_dir + "/" + save_directory
-        abs_path = abs_path.replace("//", "/")
-        if not os.path.exists(abs_path):
-            os.mkdir(abs_path)
+        if save_directory:
+            save_directory = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '_', save_directory)
+            abs_path = self.work_dir + "/" + save_directory
+            abs_path = abs_path.replace("//", "/")
+            if not os.path.exists(abs_path):
+                os.mkdir(abs_path)
+        else:
+            abs_path = self.work_dir
         with open( abs_path + "/" + fina , "wb") as f:
             f.write(res.content)
+            self.sprint(" Download > " + fina)
         self.name_rule = self.name_rule + 1
+        #ダウンロード完了リスト
+        self.il.append(path)
         return True
 class modEhentai(autoDownloader):
     def __init__(self, work_directory=""):
@@ -98,9 +150,11 @@ class modEhentai(autoDownloader):
         self.title = ""
         self.index = ""
         self.nextUrl = ""
-        self.vl = []
-        self.il = []
     def firstInit(self, url):
+        '''
+        titleを取得，ディレクトリ作成
+        nexturlをセット
+        '''
         self.index = url
         #タイトル名取得のため予め接続
         self.connector(url)
@@ -108,48 +162,49 @@ class modEhentai(autoDownloader):
         titles = self.html.xpath("//h1")
         for t in titles:
             if "id" in t.attrib and t.attrib["id"] == "gj":
-                self.title = re.sub(r'[\\|/|:|?|.|"|<|>|\|]', '_', t.text)
-                self.printf("TITLE : \t" + self.title)
-                self.printf("SAVE DIR : \t" + self.work_dir + "/" + self.title)
+                self.setSaveDir(t.text)
+                self.sprint("TITLE : \t" + self.title)
+                self.sprint("SAVE DIR : \t" + self.work_dir)
         anchors = self.getAnchors(url, False)
         if not anchors:
-            self.printf("failed top page analysis")
+            self.eprint("failed top page analysis")
             return False
         for anchor in anchors:
             for img in anchor.xpath("img"):
-                if "alt" in img.attrib and ( img.attrib["alt"] == "01" or img.attrib["alt"] == "1" ):
+                if "alt" in img.attrib and img.attrib["alt"].isdecimal() and int( img.attrib["alt"] ) == 1:
                     self.nextUrl = anchor.attrib["href"]
                     return True
-        self.printf("mE::fI:cannot find next page...")
+        self.eprint("mE::fI:cannot find next page...")
         return False
     def nextAnchor(self):
-        #nextUrlが巡回済み > false
-        if self.nextUrl in self.vl:
-            self.printf("next url : visited")
+        self.vl.append(self.nextUrl)
+        self.sprint("TRACE : \t" + self.nextUrl, end="")
+        anchors = self.getAnchors(self.nextUrl)
+        if not anchors:
+            self.eprint("mE::nA:connection failed")
             return False
-        else:
-            self.vl.append(self.nextUrl)
-            self.printf("TRACE : \t" + self.nextUrl)
-            anchors = self.getAnchors(self.nextUrl)
-            if not anchors:
-                self.printf("mE::nA:connection failed")
-                return False
-            for a in anchors:
-                for img in a.xpath("img"):
-                    if "id" in img.attrib and img.attrib["id"] == "img":
-                        self.il.append(img.attrib["src"])
+        for a in anchors:
+            for img in a.xpath("img"):
+                if "id" in img.attrib and img.attrib["id"] == "img":
+                    self.downloadImage( img.attrib["src"] )
+                    if self.nextUrl == str( a.attrib["href"] ):
+                        self.eprint("next url :"+ str( a.attrib["href"] )+" visited")
+                        return False
+                    else:
                         self.nextUrl = str( a.attrib["href"] )
+                        self.dump()
                         return True
-        self.printf("cannot find next page...")
+        self.eprint("mE::nA:cannot find next page...")
         return False
     def traceImage(self, url):
         flag = self.firstInit(url)
         while flag:
             flag = self.nextAnchor()
-            time.sleep(1)
-        for i in self.il:
-            self.downloadImage(i, save_directory=self.title)
+            if self.eflag:
+                print(self.error)
             time.sleep(2)
+        self.dump(flag)
+        return flag
 
 def main():
     route = "./Incinerator"
