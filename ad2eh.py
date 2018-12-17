@@ -163,11 +163,14 @@ class modEhentai(autoDownloader):
         if titles:
             for t in titles:
                 if "id" in t.attrib and t.attrib["id"] == "gj":
-                    self.setSaveDir(t.text)
+                    if t.text:
+                        self.setSaveDir(t.text)
+                    else:
+                        alt_title = self.html.xpath("//title")
+                        self.setSaveDir(alt_title[0].text)
                     self.sprint("TITLE : \t" + self.title)
                     self.sprint("SAVE DIR : \t" + self.work_dir)
-        else:
-            self.eprint("cant find title")
+                    break
         anchors = self.getAnchors(url, False)
         if not anchors:
             self.eprint("failed top page analysis")
@@ -205,7 +208,7 @@ class modEhentai(autoDownloader):
             flag = self.nextAnchor()
             if self.eflag:
                 print(self.error)
-            time.sleep(2)
+            time.sleep(1)
         self.dump(flag)
         return flag
 
